@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const GRAVITY = 26;
+export const DEFAULT_GRAVITY = 26;
 const JUMP_SPEED = 8.1;
 const STAND_HEIGHT = 1.8;
 const CROUCH_HEIGHT = 1.2;
@@ -59,6 +59,7 @@ export class Player {
 
     this.jumpQueued = false;
     this._fov = 70;
+    this.gravity = DEFAULT_GRAVITY;
   }
 
   look(dx, dy, sensitivity) {
@@ -148,7 +149,7 @@ export class Player {
     }
     this.jumpQueued = false;
 
-    this.vel.y -= GRAVITY * dt;
+    this.vel.y -= (this.gravity || DEFAULT_GRAVITY) * dt;
     if (this.vel.y < -60) this.vel.y = -60;
 
     // Axis-separated movement: revert the axis that collides, which gives wall sliding.

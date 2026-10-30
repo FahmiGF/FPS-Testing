@@ -126,6 +126,28 @@
     letter-spacing: .08em;
   }
 
+  /* ---------- event banner & ctf ---------- */
+  #eventBanner {
+    position: absolute; top: 58px; left: 50%; transform: translateX(-50%) translateY(-10px);
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    padding: 10px 24px; border-radius: 8px; background: rgba(15, 20, 27, 0.94);
+    border: 1px solid rgba(255, 176, 46, 0.65); box-shadow: 0 10px 30px rgba(0,0,0,.7);
+    pointer-events: none; opacity: 0; transition: opacity .25s ease, transform .25s ease;
+    z-index: 10;
+  }
+  #eventBanner.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #eventTitle { font-weight: 800; font-size: 13px; letter-spacing: .14em; color: var(--amber); }
+  #eventDesc { font-size: 11px; color: #cbd5df; margin-top: 4px; letter-spacing: .02em; }
+
+  #ctfInfo {
+    display: none; gap: 12px; align-items: center; font-size: 11px; letter-spacing: .1em;
+  }
+  .flagBadge {
+    padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 10px; text-transform: uppercase;
+  }
+  .flagBlue { background: rgba(30, 144, 255, 0.22); border: 1px solid #1e90ff; color: #9fd6ff; }
+  .flagRed { background: rgba(255, 75, 62, 0.22); border: 1px solid #ff4b3e; color: #ff9a92; }
+
   /* ---------- overlay ---------- */
   #overlay {
     position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
@@ -134,24 +156,46 @@
   }
   #overlay.hidden { opacity: 0; pointer-events: none; }
   .panel {
-    width: min(760px, 90vw); padding: 40px 46px;
+    width: min(780px, 92vw); padding: 34px 40px;
     border: 1px solid rgba(255,255,255,.10); border-radius: 10px;
-    background: linear-gradient(180deg, rgba(24,30,38,.92), rgba(12,16,21,.95));
+    background: linear-gradient(180deg, rgba(24,30,38,.94), rgba(12,16,21,.97));
     box-shadow: 0 30px 80px rgba(0,0,0,.6);
   }
   .eyebrow {
     font-size: 11px; letter-spacing: .32em; text-transform: uppercase; color: var(--amber);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
   h1 {
-    margin: 0 0 8px; font-size: 44px; line-height: .95; letter-spacing: -.02em;
+    margin: 0 0 6px; font-size: 40px; line-height: .95; letter-spacing: -.02em;
   }
   h1 span { color: var(--amber); }
   .question {
-    color: #93a2b1; font-size: 14px; margin: 0 0 26px; max-width: 54ch; line-height: 1.7;
+    color: #93a2b1; font-size: 13px; margin: 0 0 20px; max-width: 58ch; line-height: 1.6;
   }
   .question b { color: #eaf1f8; font-weight: 600; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-bottom: 30px; }
+
+  .selector-group { margin-bottom: 18px; }
+  .selector-label {
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: #8c9ba9;
+    margin-bottom: 6px; display: flex; justify-content: space-between;
+  }
+  .btn-group {
+    display: flex; gap: 6px; background: rgba(0,0,0,0.35); padding: 4px;
+    border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);
+  }
+  .btn-select {
+    flex: 1; padding: 8px 10px; background: transparent; border: none; border-radius: 5px;
+    color: #a4b3c2; font-size: 11px; font-weight: 600; cursor: pointer;
+    letter-spacing: .08em; text-transform: uppercase; transition: all .15s ease;
+  }
+  .btn-select:hover { color: #fff; background: rgba(255,255,255,0.08); }
+  .btn-select.active {
+    background: var(--amber); color: #141004; font-weight: 700;
+    box-shadow: 0 2px 8px rgba(255, 176, 46, 0.4);
+  }
+  .mode-desc { font-size: 11px; color: #8fa0b2; margin-top: 6px; line-height: 1.4; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 22px; }
   .cols h2 {
     font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
     color: #6f7d8b; margin: 0 0 10px; font-weight: 600;
@@ -186,11 +230,23 @@
   <div id="fps">-- FPS</div>
 
   <div id="topbar">
+    <span id="scoreItem">Score <b id="matchScore">0 - 0</b></span>
+    <span class="sep"></span>
     <span>Kills <b id="kills">0</b></span>
     <span class="sep"></span>
     <span>Deaths <b id="deaths">0</b></span>
     <span class="sep"></span>
-    <span id="mode">Training Ground</span>
+    <span id="mode">Deathmatch</span>
+    <div id="ctfInfo">
+      <span class="sep"></span>
+      <span class="flagBadge flagBlue" id="blueFlagBadge">Blue: Home</span>
+      <span class="flagBadge flagRed" id="redFlagBadge">Red: Home</span>
+    </div>
+  </div>
+
+  <div id="eventBanner">
+    <div id="eventTitle">⚡ DYNAMIC EVENT</div>
+    <div id="eventDesc">Event details description</div>
   </div>
 
   <div id="crosshair">
@@ -231,6 +287,32 @@
       CS-style gunplay and movement, Minecraft-style blocks. Every wall can be shot
       through, rebuilt, and turned into your own angle.
     </p>
+    <div class="selector-group">
+      <div class="selector-label">
+        <span>Select Game Mode</span>
+        <span id="modeGoal" style="color:var(--amber);">First to 20 Kills</span>
+      </div>
+      <div class="btn-group" id="modeButtons">
+        <button class="btn-select active" data-mode="deathmatch">Deathmatch</button>
+        <button class="btn-select" data-mode="classic">Classic Tactical</button>
+        <button class="btn-select" data-mode="ctf">Capture The Flag</button>
+      </div>
+      <div class="mode-desc" id="modeDesc">Fast-paced free-for-all action. First to reach 20 kills wins the match!</div>
+    </div>
+
+    <div class="selector-group">
+      <div class="selector-label">
+        <span>Bot Difficulty Level</span>
+        <span id="levelLabel" style="color:var(--amber);">Level 2: Veteran</span>
+      </div>
+      <div class="btn-group" id="botButtons">
+        <button class="btn-select" data-level="1">Recruit</button>
+        <button class="btn-select active" data-level="2">Veteran</button>
+        <button class="btn-select" data-level="3">Elite</button>
+        <button class="btn-select" data-level="4">Nightmare</button>
+      </div>
+    </div>
+
     <div class="cols" id="controls">
       <div>
         <h2>Move &amp; aim</h2>

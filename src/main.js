@@ -1,8 +1,10 @@
 ﻿import * as THREE from 'three';
 import { VoxelWorld, buildArena, raycastVoxels, BLOCK_TYPES, PLACEABLE } from './voxelWorld.js';
-import { Player } from './player.js';
-import { Bot, Tracers } from './bots.js';
+import { Player, DEFAULT_GRAVITY } from './player.js';
+import { Bot, Tracers, BOT_LEVELS } from './bots.js';
 import { Particles, Sfx } from './effects.js';
+import { GameModeManager, MODES } from './gameModes.js';
+import { EventManager } from './events.js';
 
 /* ------------------------------------------------------------------ */
 /* DOM                                                                 */
@@ -24,6 +26,17 @@ const killsEl = $('kills');
 const deathsEl = $('deaths');
 const blockNameEl = $('blockname');
 const fpsEl = $('fps');
+const modeEl = $('mode');
+const matchScoreEl = $('matchScore');
+const ctfInfoEl = $('ctfInfo');
+const blueFlagBadge = $('blueFlagBadge');
+const redFlagBadge = $('redFlagBadge');
+const eventBannerEl = $('eventBanner');
+const eventTitleEl = $('eventTitle');
+const eventDescEl = $('eventDesc');
+const modeGoalEl = $('modeGoal');
+const modeDescEl = $('modeDesc');
+const levelLabelEl = $('levelLabel');
 
 const deadBanner = document.createElement('div');
 deadBanner.style.cssText = `
@@ -108,7 +121,53 @@ const botSpawns = [
   new THREE.Vector3(45.5, 1, 51.5),
 ];
 
-const bots = botSpawns.map((spawn, i) => new Bot(scene, world, spawn, BOT_PALETTES[i], tracers));
+const bots = botSpawns.map((spawn, i) => new Bot(scene, world, spawn, BOT_PALETTES[i], tracers, 2));
+
+/* ------------------------------------------------------------------ */
+/* Game Modes & Dynamic Events                                         */
+/* ------------------------------------------------------------------ */
+
+const gameMode = new GameModeManager(MODES.DEATHMATCH);
+const eventManager = new EventManager(world, scene, particles, sfx);
+
+function createFlagMesh(colorHex) {
+  const group = new THREE.Group();
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6), poleMat);
+  pole.position.y = 1.3;
+  pole.castShadow = true;
+  group.add(pole);
+
+  const bannerMat = new THREE.MeshLambertMaterial({ color: colorHex, side: THREE.DoubleSide });
+  const banner = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.55, 0.05), bannerMat);
+  banner.position.set(0.42, 2.1, 0);
+  banner.castShadow = true;
+  group.add(banner);
+
+  const baseMat = new THREE.MeshLambertMaterial({ color: colorHex });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.8, 0.12, 12), baseMat);
+  base.position.y = 0.06;
+  group.add(base);
+
+  group.visible = false;
+  scene.add(group);
+  return group;
+}
+
+const blueFlagMesh = createFlagMesh(0x1e90ff);
+const redFlagMesh = createFlagMesh(0xff3b30);
+
+let bannerTimeout = null;
+function showEventBanner(title, desc) {
+  if (!eventBannerEl) return;
+  eventTitleEl.textContent = title;
+  eventDescEl.textContent = desc;
+  eventBannerEl.classList.add('show');
+  if (bannerTimeout) clearTimeout(bannerTimeout);
+  bannerTimeout = setTimeout(() => {
+    eventBannerEl.classList.remove('show');
+  }, 3600);
+}
 
 /* ------------------------------------------------------------------ */
 /* Viewmodel                                                           */
@@ -302,8 +361,11 @@ function fire() {
     return;
   }
 
-  weapon.ammo--;
-  fireTimer = 60 / weapon.rpm;
+  const isRapid = eventManager.isRapidFire();
+  if (!isRapid) {
+    weapon.ammo--;
+  }
+  fireTimer = (60 / weapon.rpm) * (isRapid ? 0.6 : 1.0);
   sfx.shot(weapon.heavy);
 
   const origin = player.eyePosition;
@@ -334,7 +396,8 @@ function fire() {
   if (bestBot && (!voxelHit || bestBot.t < voxelHit.t)) {
     const point = origin.clone().addScaledVector(dir, bestBot.t);
     const headshot = point.y > bestBot.bot.pos.y + 1.5;
-    const dmg = weapon.dmg * damageFalloff(weapon, bestBot.t) * (headshot ? weapon.headMult : 1);
+    const dmgMult = eventManager.isDoubleDamage() ? 2.0 : 1.0;
+    const dmg = weapon.dmg * damageFalloff(weapon, bestBot.t) * (headshot ? weapon.headMult : 1) * dmgMult;
     const killed = bestBot.bot.takeDamage(dmg);
 
     particles.burst(point, dir.clone().negate(), 0xc23a2c, 9, 3);
@@ -343,6 +406,7 @@ function fire() {
     if (killed) {
       kills++;
       addKillfeed(headshot);
+      gameMode.onBotKilled(bestBot.bot, bots);
     }
   } else if (voxelHit) {
     const point = origin.clone().addScaledVector(dir, Math.max(0, voxelHit.t - 0.02));
@@ -403,6 +467,41 @@ document.addEventListener('contextmenu', (e) => e.preventDefault());
 playButton.addEventListener('click', () => {
   sfx.init();
   canvas.requestPointerLock();
+});
+
+// Mode and Bot Difficulty Selectors
+const modeButtons = document.querySelectorAll('#modeButtons .btn-select');
+modeButtons.forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    modeButtons.forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const newMode = btn.dataset.mode;
+    gameMode.setMode(newMode);
+    if (modeDescEl) modeDescEl.textContent = gameMode.config.description;
+    if (modeGoalEl) {
+      modeGoalEl.textContent =
+        newMode === 'deathmatch'
+          ? 'First to 20 Kills'
+          : newMode === 'classic'
+          ? 'Best of 5 Rounds'
+          : 'First to 3 Captures';
+    }
+    if (modeEl) modeEl.textContent = gameMode.config.name;
+    if (ctfInfoEl) ctfInfoEl.style.display = newMode === 'ctf' ? 'flex' : 'none';
+  });
+});
+
+const botButtons = document.querySelectorAll('#botButtons .btn-select');
+botButtons.forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    botButtons.forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const lvl = Number(btn.dataset.level);
+    for (const b of bots) b.setLevel(lvl);
+    if (levelLabelEl) levelLabelEl.textContent = `Level ${lvl}: ${BOT_LEVELS[lvl].name}`;
+  });
 });
 
 document.addEventListener('pointerlockchange', () => {
@@ -502,6 +601,19 @@ function updateHud(dt) {
   killsEl.textContent = kills;
   deathsEl.textContent = player.deaths;
 
+  if (matchScoreEl) {
+    matchScoreEl.textContent =
+      gameMode.mode === MODES.CLASSIC
+        ? `R${gameMode.round} [${gameMode.playerScore} - ${gameMode.enemyScore}]`
+        : `${gameMode.playerScore} - ${gameMode.enemyScore}`;
+  }
+
+  if (gameMode.mode === MODES.CTF && ctfInfoEl) {
+    ctfInfoEl.style.display = 'flex';
+    if (blueFlagBadge) blueFlagBadge.textContent = `Blue: ${gameMode.flags.blue.state}`;
+    if (redFlagBadge) redFlagBadge.textContent = `Red: ${gameMode.flags.red.state}`;
+  }
+
   if (hitTimer > 0) {
     hitTimer -= dt;
     if (hitTimer <= 0) hitmarkerEl.style.opacity = '0';
@@ -520,6 +632,7 @@ function updateHud(dt) {
 
 let fpsFrames = 0;
 let fpsStart = performance.now();
+let roundTransitionTimer = 3.0;
 
 /* ------------------------------------------------------------------ */
 /* Loop                                                                */
@@ -540,7 +653,69 @@ function simulate(dt) {
     }
   }
 
+  const wasAlive = player.alive;
   player.update(dt, input);
+  if (wasAlive && !player.alive) {
+    gameMode.onPlayerKilled(bots);
+  }
+
+  // Dynamic Event updates & Low Gravity modifier
+  const eventNotes = eventManager.update(dt, player, bots);
+  for (const n of eventNotes) {
+    if (n.type === 'start') {
+      showEventBanner(n.event.title, n.event.desc);
+      sfx.hitmarker(true);
+    } else if (n.type === 'end') {
+      showEventBanner('EVENT FINISHED', `${n.event.title} has concluded.`);
+    } else if (n.message) {
+      showEventBanner('EVENT ALERT', n.message);
+    }
+  }
+
+  if (eventManager.isGravityReduced()) {
+    player.gravity = 9.8;
+  } else {
+    player.gravity = DEFAULT_GRAVITY;
+  }
+
+  // Mode specific logic
+  if (gameMode.mode === MODES.CTF) {
+    blueFlagMesh.visible = true;
+    redFlagMesh.visible = true;
+    blueFlagMesh.position.copy(gameMode.flags.blue.pos);
+    redFlagMesh.position.copy(gameMode.flags.red.pos);
+
+    const ctfEvt = gameMode.updateCTF(player, bots);
+    if (ctfEvt) {
+      showEventBanner('CTF OBJECTIVE', ctfEvt.message);
+      sfx.hitmarker(true);
+    }
+  } else {
+    blueFlagMesh.visible = false;
+    redFlagMesh.visible = false;
+  }
+
+  if (gameMode.mode === MODES.CLASSIC && gameMode.roundOver && !gameMode.matchOver) {
+    roundTransitionTimer -= dt;
+    if (roundTransitionTimer <= 0) {
+      roundTransitionTimer = 3.0;
+      gameMode.startNextRound(player, bots);
+      showEventBanner(`ROUND ${gameMode.round} START`, 'Round began! Eliminate all enemy bots.');
+    }
+  }
+
+  if (gameMode.matchOver && roundTransitionTimer === 3.0) {
+    const isWin = gameMode.winner === 'player';
+    showEventBanner(
+      isWin ? '🏆 MATCH VICTORY!' : '💀 MATCH DEFEATED!',
+      `Final Score: Blue ${gameMode.playerScore} - ${gameMode.enemyScore} Red. Restarting match...`
+    );
+    setTimeout(() => {
+      gameMode.reset();
+      player.respawn();
+      for (const b of bots) b.respawn();
+    }, 4500);
+  }
 
   if (firing && currentWeapon().auto) fire();
 
@@ -614,6 +789,8 @@ window.__vs = {
   world,
   bots,
   camera,
+  gameMode,
+  eventManager,
   input,
   fire,
   placeBlock,
