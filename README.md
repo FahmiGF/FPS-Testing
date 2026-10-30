@@ -35,6 +35,31 @@ Game ini menyediakan 3 mode permainan berbeda yang dapat dipilih langsung dari m
 
 ---
 
+## 🗺️ Peta Pertempuran Voxel (Tactical Maps)
+
+Game ini kini menyediakan 6 pilihan peta tematik dengan layout arsitektur, atmosfer kabut, dan pencahayaan unik:
+
+1. **🏜️ Dust Compound (Desert Military)**
+   - Peta taktis klasik dengan lorong sempit, tumpukan peti, dan dinding pemisah dengan 3 pintu tembak.
+   - Suasana: Gurun pasir berdebu dengan langit biru terik.
+2. **❄️ Frostbite Outpost (Winter & Snow)**
+   - Hamparan salju putih dengan danau es beku di tengah, menara pengawas kayu, dan barisan pohon pinus voxel.
+   - Suasana: Kabut es arktik dingin dengan matahari kutub yang pucat.
+3. **🌋 Inferno Chasm (Lava & Volcano)**
+   - Batuan vulkanik gelap (basalt) yang dibelah oleh sungai lahar membara di tengah, dihubungkan oleh 3 jembatan baja sempit.
+   - Suasana: Langit merah menyala, kabut panas belerang, dan pijar lava.
+4. **🏝️ Coral Atoll (Beach & Tropical Island)**
+   - Garis pantai pasir putih dengan laguna air pirus dangkal, dermaga kayu, gubuk pantai, dan pohon kelapa.
+   - Suasana: Tropis cerah dengan air laut biru kehijauan yang hangat.
+5. **🏰 Stonehold Keep (Medieval Castle)**
+   - Benteng batu megah dengan benteng bersudut empat (bastions), halaman dalam berlapis batu bulat, dan gerbang melengkung.
+   - Suasana: Kastil berawan mendung dengan nuansa perang abad pertengahan.
+6. **🏙️ Urban Warzone (Modern Warfare)**
+   - Persimpangan jalan aspal kota yang hancur, barikade beton jalan raya, pos karung pasir militer, dan gedung perkantoran 2 lantai dengan jendela bidik sniper.
+   - Suasana: Kabut asap perang modern abu-abu kehijauan.
+
+---
+
 ## 🤖 Tingkat Kesulitan AI Bot (Bot Levels)
 
 Bot musuh dilengkapi dengan 4 tingkat kesulitan yang dapat disesuaikan:
@@ -82,6 +107,7 @@ Secara berkala, arena akan memicu event dinamis yang mengubah alur permainan:
 
 Proyek ini dilengkapi dengan suite pengujian otomatis berbasis Node.js native test runner (`node:test` & `node:assert`) dengan 100% kelulusan:
 
+- **`tests/maps.test.js`**: Uji generasi prosedural 6 map tematik (Compound, Winter, Lava, Beach, Castle, Modern Warfare) dan verifikasi zona spawn bebas rintangan.
 - **`tests/modes.test.js`**: Uji aturan mode Deathmatch, Classic round elimination, dan alur Capture The Flag (grab, return, capture).
 - **`tests/events.test.js`**: Uji aktivasi event, timer durasi, supply drop pickup, dan ledakan voxel meteor.
 - **`tests/botLevels.test.js`**: Uji penyesuaian stat HP, akurasi, dan scaling dinamis bot level 1-4.

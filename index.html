@@ -183,6 +183,8 @@
     display: flex; gap: 6px; background: rgba(0,0,0,0.35); padding: 4px;
     border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);
   }
+  .btn-group.wrap { flex-wrap: wrap; }
+  .btn-group.wrap .btn-select { flex: 1 1 calc(33.333% - 6px); min-width: 100px; text-align: center; }
   .btn-select {
     flex: 1; padding: 8px 10px; background: transparent; border: none; border-radius: 5px;
     color: #a4b3c2; font-size: 11px; font-weight: 600; cursor: pointer;
@@ -287,6 +289,22 @@
       CS-style gunplay and movement, Minecraft-style blocks. Every wall can be shot
       through, rebuilt, and turned into your own angle.
     </p>
+    <div class="selector-group">
+      <div class="selector-label">
+        <span>Select Tactical Map</span>
+        <span id="mapLabel" style="color:var(--amber);">Dust Compound</span>
+      </div>
+      <div class="btn-group wrap" id="mapButtons">
+        <button class="btn-select active" data-map="compound">Dust Compound</button>
+        <button class="btn-select" data-map="winter">Frostbite (Snow)</button>
+        <button class="btn-select" data-map="lava">Inferno (Lava)</button>
+        <button class="btn-select" data-map="beach">Coral Atoll (Beach)</button>
+        <button class="btn-select" data-map="castle">Stonehold (Castle)</button>
+        <button class="btn-select" data-map="modern_warfare">Warzone (Modern)</button>
+      </div>
+      <div class="mode-desc" id="mapDesc">Tactical desert compound with tight corridors, sniper angles, and balanced bomb sites.</div>
+    </div>
+
     <div class="selector-group">
       <div class="selector-label">
         <span>Select Game Mode</span>

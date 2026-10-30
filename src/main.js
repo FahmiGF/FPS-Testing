@@ -5,6 +5,7 @@ import { Bot, Tracers, BOT_LEVELS } from './bots.js';
 import { Particles, Sfx } from './effects.js';
 import { GameModeManager, MODES } from './gameModes.js';
 import { EventManager } from './events.js';
+import { MAP_CONFIGS } from './maps.js';
 
 /* ------------------------------------------------------------------ */
 /* DOM                                                                 */
@@ -37,6 +38,8 @@ const eventDescEl = $('eventDesc');
 const modeGoalEl = $('modeGoal');
 const modeDescEl = $('modeDesc');
 const levelLabelEl = $('levelLabel');
+const mapLabelEl = $('mapLabel');
+const mapDescEl = $('mapDesc');
 
 const deadBanner = document.createElement('div');
 deadBanner.style.cssText = `
@@ -504,6 +507,63 @@ botButtons.forEach((btn) => {
   });
 });
 
+let currentMapId = 'compound';
+function loadMap(mapId) {
+  const mapConfig = MAP_CONFIGS[mapId];
+  if (!mapConfig) return;
+  currentMapId = mapId;
+
+  // Clear and rebuild world voxels
+  world.clearAll();
+  mapConfig.build(world);
+  world.rebuild();
+
+  // Environment & Lighting
+  scene.background.setHex(mapConfig.skyColor);
+  scene.fog.color.setHex(mapConfig.fogColor);
+  scene.fog.near = mapConfig.fogNear;
+  scene.fog.far = mapConfig.fogFar;
+  sun.color.setHex(mapConfig.sunColor);
+  sun.intensity = mapConfig.sunIntensity;
+  hemi.color.setHex(mapConfig.hemiSky);
+  hemi.groundColor.setHex(mapConfig.hemiGround);
+
+  // Player position & spawn
+  player.spawn.copy(mapConfig.playerSpawn);
+  player.respawn();
+
+  // Bot positions & spawns
+  for (let i = 0; i < bots.length; i++) {
+    if (mapConfig.botSpawns[i]) {
+      bots[i].spawn.copy(mapConfig.botSpawns[i]);
+      bots[i].respawn();
+    }
+  }
+
+  // CTF bases
+  gameMode.flags.blue.basePos.copy(mapConfig.blueBase);
+  gameMode.flags.red.basePos.copy(mapConfig.redBase);
+  gameMode.resetFlags();
+
+  // Reset dynamic events
+  eventManager.clearEventEffects();
+
+  showEventBanner('MAP DEPLOYED', `${mapConfig.name} (${mapConfig.theme}) loaded.`);
+}
+
+const mapButtons = document.querySelectorAll('#mapButtons .btn-select');
+mapButtons.forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    mapButtons.forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const chosen = btn.dataset.map;
+    loadMap(chosen);
+    if (mapLabelEl) mapLabelEl.textContent = MAP_CONFIGS[chosen].name;
+    if (mapDescEl) mapDescEl.textContent = MAP_CONFIGS[chosen].description;
+  });
+});
+
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   playing = locked;
@@ -791,6 +851,11 @@ window.__vs = {
   camera,
   gameMode,
   eventManager,
+  loadMap,
+  MAP_CONFIGS,
+  get currentMap() {
+    return currentMapId;
+  },
   input,
   fire,
   placeBlock,

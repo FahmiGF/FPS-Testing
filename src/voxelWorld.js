@@ -10,9 +10,17 @@ export const BLOCK_TYPES = [
   { name: 'Metal', color: 0x5c707c },
   { name: 'Brick', color: 0xa6564c },
   { name: 'Grass', color: 0x6f9a54 },
+  { name: 'Snow', color: 0xf2f6fa },
+  { name: 'Ice', color: 0x88d4f2 },
+  { name: 'Magma', color: 0xe03a10 },
+  { name: 'Basalt', color: 0x27272b },
+  { name: 'Water', color: 0x1f78c8 },
+  { name: 'Wood', color: 0x7a5230 },
+  { name: 'Concrete', color: 0x6d727a },
+  { name: 'Foliage', color: 0x2e6b34 },
 ];
 
-export const PLACEABLE = [1, 2, 3, 4, 5, 6];
+export const PLACEABLE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13];
 
 const EPS = 1e-4;
 
@@ -77,6 +85,12 @@ export class VoxelWorld {
     return true;
   }
 
+  clearAll() {
+    this.data.fill(AIR);
+    this.solidCount = 0;
+    this.dirty = true;
+  }
+
   rebuild() {
     const { mesh, data, sx, sy, sz } = this;
     const m4 = this._m4;
@@ -113,7 +127,7 @@ export class VoxelWorld {
   }
 }
 
-function fill(world, x0, y0, z0, x1, y1, z1, type) {
+export function fill(world, x0, y0, z0, x1, y1, z1, type) {
   for (let y = y0; y <= y1; y++) {
     for (let z = z0; z <= z1; z++) {
       for (let x = x0; x <= x1; x++) {
@@ -123,11 +137,11 @@ function fill(world, x0, y0, z0, x1, y1, z1, type) {
   }
 }
 
-function clear(world, x0, y0, z0, x1, y1, z1) {
+export function clear(world, x0, y0, z0, x1, y1, z1) {
   fill(world, x0, y0, z0, x1, y1, z1, AIR);
 }
 
-function mulberry32(seed) {
+export function mulberry32(seed) {
   let a = seed >>> 0;
   return function random() {
     a = (a + 0x6d2b79f5) >>> 0;
