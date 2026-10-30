@@ -1,0 +1,14 @@
+{
+  "name": "fps-testing",
+  "version": "0.1.0",
+  "description": "FPS Testing prototype: Counter-Strike style gunplay and movement combined with Minecraft style destructible voxel cover",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  }
+}

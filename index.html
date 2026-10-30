@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>VOXEL STRIKE — prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="data:," />
+<style>
+  :root {
+    --amber: #ffb02e;
+    --red: #ff4b3e;
+    --ice: #9fd6ff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #0b0d10;
+    font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+    color: #e8edf2; user-select: none; cursor: default;
+  }
+  #c { display: block; width: 100%; height: 100%; }
+
+  /* ---------- crosshair ---------- */
+  #crosshair {
+    position: fixed; left: 50%; top: 50%; width: 0; height: 0;
+    pointer-events: none; z-index: 5;
+  }
+  #crosshair i {
+    position: absolute; background: rgba(240, 255, 240, .85);
+    box-shadow: 0 0 3px rgba(0,0,0,.9);
+  }
+  #crosshair .h { width: 9px; height: 2px; top: -1px; }
+  #crosshair .v { width: 2px; height: 9px; left: -1px; }
+  #crosshair .l { left: -14px; }
+  #crosshair .r { left: 5px; }
+  #crosshair .u { top: -14px; }
+  #crosshair .d { top: 5px; }
+  #crosshair .dot { width: 2px; height: 2px; left: -1px; top: -1px; background: #fff; }
+
+  #hitmarker {
+    position: fixed; left: 50%; top: 50%; width: 26px; height: 26px;
+    margin: -13px 0 0 -13px; pointer-events: none; z-index: 6; opacity: 0;
+    transition: opacity .06s linear;
+  }
+  #hitmarker::before, #hitmarker::after {
+    content: ""; position: absolute; left: 11px; top: -2px; width: 3px; height: 30px;
+    background: #fff; border-radius: 1px;
+  }
+  #hitmarker::before { transform: rotate(45deg); }
+  #hitmarker::after  { transform: rotate(-45deg); }
+  #hitmarker.kill::before, #hitmarker.kill::after { background: var(--red); }
+
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 4; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 38%, rgba(255,30,20,.55) 100%);
+    transition: opacity .18s ease-out;
+  }
+
+  /* ---------- hud ---------- */
+  #hud {
+    position: fixed; inset: 0; pointer-events: none; z-index: 3;
+    text-shadow: 0 1px 5px rgba(0,0,0,.6);
+  }
+
+  #topbar {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 22px; align-items: center;
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: #b9c4d0;
+  }
+  #topbar b { color: #fff; font-size: 18px; letter-spacing: .04em; }
+  #topbar .sep { width: 1px; height: 16px; background: rgba(255,255,255,.18); }
+
+  #bottomleft {
+    position: absolute; left: 26px; bottom: 22px; display: flex; align-items: flex-end; gap: 12px;
+  }
+  #hpwrap { width: 190px; }
+  #hplabel {
+    display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .16em;
+    color: #9aa7b4; text-transform: uppercase; margin-bottom: 5px;
+  }
+  #hplabel b { color: #fff; font-size: 22px; letter-spacing: 0; line-height: 1; }
+  #hpbar {
+    height: 7px; background: rgba(255,255,255,.10); border-radius: 2px; overflow: hidden;
+  }
+  #hpfill {
+    height: 100%; width: 100%; background: linear-gradient(90deg, #7ee081, #b7f0a8);
+    transition: width .12s linear, background .2s;
+  }
+  #hpfill.low { background: linear-gradient(90deg, #ff5a45, #ff9a5a); }
+
+  #bottomright {
+    position: absolute; right: 26px; bottom: 18px; text-align: right;
+  }
+  #wname {
+    font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: #9aa7b4;
+  }
+  #ammo { font-size: 44px; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+  #ammo small { font-size: 18px; font-weight: 400; color: #93a0ad; }
+  #reloading { font-size: 11px; letter-spacing: .24em; color: var(--amber); height: 14px; }
+
+  #blockhint {
+    position: absolute; right: 26px; bottom: 118px; text-align: right;
+    font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #9aa7b4;
+  }
+  #blockhint b { color: var(--ice); }
+
+  #hint {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: .1em; color: #7d8b98; white-space: nowrap;
+  }
+  kbd {
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
+    border-radius: 3px; padding: 1px 5px; font: inherit; font-size: 10px; color: #dfe7ef;
+  }
+
+  #killfeed {
+    position: absolute; right: 26px; top: 64px; text-align: right;
+    font-size: 12px; line-height: 1.7; color: #cfd8e2;
+  }
+  #killfeed div { animation: fadeout 3.2s forwards; }
+  #killfeed b { color: var(--amber); }
+  @keyframes fadeout { 0%,70% { opacity: 1 } 100% { opacity: 0 } }
+
+  #fps {
+    position: absolute; left: 12px; top: 10px; font-size: 11px; color: #5f6c78;
+    letter-spacing: .08em;
+  }
+
+  /* ---------- overlay ---------- */
+  #overlay {
+    position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 40%, rgba(20,26,34,.82), rgba(6,8,11,.96));
+    backdrop-filter: blur(3px); transition: opacity .2s;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  .panel {
+    width: min(760px, 90vw); padding: 40px 46px;
+    border: 1px solid rgba(255,255,255,.10); border-radius: 10px;
+    background: linear-gradient(180deg, rgba(24,30,38,.92), rgba(12,16,21,.95));
+    box-shadow: 0 30px 80px rgba(0,0,0,.6);
+  }
+  .eyebrow {
+    font-size: 11px; letter-spacing: .32em; text-transform: uppercase; color: var(--amber);
+    margin-bottom: 10px;
+  }
+  h1 {
+    margin: 0 0 8px; font-size: 44px; line-height: .95; letter-spacing: -.02em;
+  }
+  h1 span { color: var(--amber); }
+  .question {
+    color: #93a2b1; font-size: 14px; margin: 0 0 26px; max-width: 54ch; line-height: 1.7;
+  }
+  .question b { color: #eaf1f8; font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-bottom: 30px; }
+  .cols h2 {
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+    color: #6f7d8b; margin: 0 0 10px; font-weight: 600;
+  }
+  .cols ul { list-style: none; margin: 0; padding: 0; font-size: 13px; line-height: 2.05; color: #cbd5df; }
+  .cols li { display: flex; justify-content: space-between; gap: 12px; }
+  .cols li span:last-child { color: #7f8d9b; }
+  #play {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 13px 30px; border-radius: 6px; border: 0; cursor: pointer;
+    background: var(--amber); color: #181200; font-size: 13px;
+    font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+  }
+  #play:hover { background: #ffc257; }
+  .dead #play { background: #2b3541; color: #cfd8e2; }
+  .status { margin-top: 18px; font-size: 12px; color: #6f7d8b; letter-spacing: .08em; }
+  .status b { color: #dbe4ee; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js",
+    "three/addons/": "./node_modules/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div id="fps">-- FPS</div>
+
+  <div id="topbar">
+    <span>Kills <b id="kills">0</b></span>
+    <span class="sep"></span>
+    <span>Deaths <b id="deaths">0</b></span>
+    <span class="sep"></span>
+    <span id="mode">Training Ground</span>
+  </div>
+
+  <div id="crosshair">
+    <i class="h l"></i><i class="h r"></i><i class="v u"></i><i class="v d"></i><i class="dot"></i>
+  </div>
+  <div id="hitmarker"></div>
+  <div id="vignette"></div>
+
+  <div id="bottomleft">
+    <div id="hpwrap">
+      <div id="hplabel"><span>Health</span><b id="hpnum">100</b></div>
+      <div id="hpbar"><div id="hpfill"></div></div>
+    </div>
+  </div>
+
+  <div id="bottomright">
+    <div id="wname">AK-47</div>
+    <div id="ammo">30<small>/∞</small></div>
+    <div id="reloading"></div>
+  </div>
+
+  <div id="blockhint">Build block <b id="blockname">Stone</b> <span style="opacity:.45">[Q]</span></div>
+
+  <div id="hint">
+    <kbd>LMB</kbd> fire / break &nbsp; <kbd>RMB</kbd> place &nbsp; <kbd>R</kbd> reload &nbsp;
+    <kbd>1</kbd><kbd>2</kbd> weapon &nbsp; <kbd>Shift</kbd> sprint &nbsp; <kbd>Ctrl</kbd> crouch &nbsp; <kbd>Esc</kbd> pause
+  </div>
+
+  <div id="killfeed"></div>
+</div>
+
+<div id="overlay">
+  <div class="panel" id="panel">
+    <div class="eyebrow">Prototype 01 · 60-minute spike</div>
+    <h1>VOXEL <span>STRIKE</span></h1>
+    <p class="question" id="question">
+      Question this build answers: <b>does destructible cover change how you fight?</b>
+      CS-style gunplay and movement, Minecraft-style blocks. Every wall can be shot
+      through, rebuilt, and turned into your own angle.
+    </p>
+    <div class="cols" id="controls">
+      <div>
+        <h2>Move &amp; aim</h2>
+        <ul>
+          <li><span>WASD</span><span>Move</span></li>
+          <li><span>Mouse</span><span>Look</span></li>
+          <li><span>Shift / Ctrl</span><span>Sprint / Crouch</span></li>
+          <li><span>Space</span><span>Jump</span></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Fight &amp; build</h2>
+        <ul>
+          <li><span>Left click</span><span>Fire / destroy block</span></li>
+          <li><span>Right click</span><span>Place block</span></li>
+          <li><span>1 / 2</span><span>Rifle / Pistol</span></li>
+          <li><span>Q</span><span>Cycle block type</span></li>
+        </ul>
+      </div>
+    </div>
+    <button id="play">Click to play</button>
+    <div class="status" id="status">Left click destroys cover · right click rebuilds it</div>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
