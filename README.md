@@ -35,6 +35,46 @@ Game ini menyediakan 3 mode permainan berbeda yang dapat dipilih langsung dari m
 
 ---
 
+## 🔫 Senjata & Sistem Attachment
+
+Tersedia **7 senjata** dengan karakter balistik masing-masing:
+
+| Senjata | Kelas | Damage | RPM | Mag | Slot Attachment |
+| :--- | :--- | ---: | ---: | ---: | :--- |
+| **AK-47** | Rifle | 30 | 600 | 30 | Optic, Muzzle, Underbarrel, Magazine, Laser |
+| **M4A1** | Carbine | 26 | 750 | 30 | Optic, Muzzle, Underbarrel, Magazine, Laser |
+| **MP5** | SMG | 20 | 900 | 30 | Optic, Muzzle, Magazine, Laser |
+| **SPAS-12** | Shotgun | 13 × 9 pellet | 90 | 8 | Optic, Underbarrel, Laser |
+| **AWP** | Sniper | 118 | 42 | 5 | Optic, Muzzle, Magazine, Underbarrel |
+| **M249** | LMG | 31 | 700 | 100 | Optic, Muzzle, Underbarrel, Laser |
+| **DEAGLE** | Pistol | 55 | 280 | 7 | Optic, Muzzle, Magazine, Laser |
+
+### Sistem Attachment (5 Slot, 19 Pilihan)
+
+- **🔭 Optic** — Iron Sights, Red Dot, Holo Sight, ACOG 2.5x, Sniper Scope 5x (zoom + akurasi).
+- **🔇 Muzzle** — Suppressor, Compensator, Muzzle Brake (recoil vs noise trade-off).
+- **✋ Underbarrel** — Vertical Grip, Angled Grip, Bipod (kontrol recoil / kecepatan ADS).
+- **📦 Magazine** — Standard, Extended (+50%), Drum (+120%, reload lebih lambat).
+- **🔴 Laser** — Laser Sight, IR Laser (mengurangi spread hip-fire).
+
+Modifier attachment bersifat **multiplikatif** dan dihitung oleh `resolveWeaponStats()` tanpa mengubah stat dasar senjata. Setiap senjata menyimpan loadout-nya sendiri.
+
+### Cara Memasang Attachment
+
+1. Buka menu lobi (atau tekan **Esc** untuk pause).
+2. Pada panel **Weapon & Attachment Loadout**, pilih senjata (AK-47, M4A1, MP5, SPAS-12, AWP, M249, DEAGLE).
+3. Klik attachment pada baris slot yang diinginkan — slot yang tidak didukung senjata tersebut otomatis tidak ditampilkan.
+4. Ringkasan attachment aktif muncul di bawah panel dan di HUD kanan bawah.
+5. Klik **Click to play / Resume** untuk langsung memakainya.
+
+### Aim Down Sights (ADS)
+
+- Tahan **Klik Kanan** untuk membidik. FOV zoom mengikuti optic yang terpasang.
+- **Sniper Scope 5x** menampilkan overlay scope bulat penuh dengan crosshair dan reticle merah; viewmodel disembunyikan otomatis.
+- Saat ADS: spread mengecil, recoil berkurang, dan sensitivity mouse menyesuaikan zoom.
+
+---
+
 ## 🗺️ Peta Pertempuran Voxel (Tactical Maps)
 
 Game ini kini menyediakan 10 pilihan peta tematik dengan layout arsitektur, atmosfer kabut, dan pencahayaan unik:
@@ -104,11 +144,13 @@ Secara berkala, arena akan memicu event dinamis yang mengubah alur permainan:
 | **W, A, S, D** | Bergerak (*Movement*) |
 | **Mouse** | Membidik (*Aim / Look*) |
 | **Klik Kiri (LMB)** | Menembak / Menghancurkan blok voxel |
-| **Klik Kanan (RMB)** | Memasang blok cover voxel (*Build cover*) |
+| **Klik Kanan (RMB)** | Membidik / ADS dan zoom scope |
+| **F** | Memasang blok cover voxel (*Build cover*) |
 | **Space** | Melompat (*Jump*) |
 | **Shift** | Berlari cepat (*Sprint*) |
 | **Ctrl** | Menunduk (*Crouch*) |
-| **1 / 2** | Ganti senjata (**AK-47** / **Desert Eagle**) |
+| **1 – 7** | Ganti senjata (AK-47, M4A1, MP5, SPAS-12, AWP, M249, DEAGLE) |
+| **Scroll Wheel** | Siklus senjata cepat |
 | **R** | Isi ulang peluru (*Reload*) |
 | **Q** | Ganti tipe material blok (Stone, Crate, Sand, Metal, Brick, Grass, Snow, Ice, Magma, Basalt, Wood, Concrete, Foliage) |
 | **Esc** | Pause / Buka kursor mouse |

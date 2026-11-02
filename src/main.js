@@ -6,6 +6,13 @@ import { Particles, Sfx } from './effects.js';
 import { GameModeManager, MODES } from './gameModes.js';
 import { EventManager } from './events.js';
 import { MAP_CONFIGS } from './maps.js';
+import { WEAPON_DEFS, WEAPON_ORDER, damageFalloff, rayAABB } from './weapons.js';
+import {
+  ATTACHMENTS,
+  AttachmentManager,
+  SLOT_LABELS,
+  resolveWeaponStats,
+} from './attachments.js';
 
 /* ------------------------------------------------------------------ */
 /* DOM                                                                 */
@@ -40,6 +47,12 @@ const modeDescEl = $('modeDesc');
 const levelLabelEl = $('levelLabel');
 const mapLabelEl = $('mapLabel');
 const mapDescEl = $('mapDesc');
+const wattachmentsEl = $('wattachments');
+const scopeOverlayEl = $('scopeOverlay');
+const crosshairEl = $('crosshair');
+const attachmentRowsEl = $('attachmentRows');
+const attachSummaryEl = $('attachSummary');
+const loadoutNameEl = $('loadoutName');
 
 const deadBanner = document.createElement('div');
 deadBanner.style.cssText = `
@@ -176,7 +189,7 @@ function showEventBanner(title, desc) {
 /* Viewmodel                                                           */
 /* ------------------------------------------------------------------ */
 
-function buildGun(compact) {
+function buildGun(compact, long = false) {
   const group = new THREE.Group();
   const dark = new THREE.MeshLambertMaterial({ color: 0x363d46 });
   const mid = new THREE.MeshLambertMaterial({ color: 0x5b6672 });
@@ -187,8 +200,9 @@ function buildGun(compact) {
   receiver.position.set(0, 0, compact ? -0.08 : -0.12);
   group.add(receiver);
 
-  const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, compact ? 0.16 : 0.5), mid);
-  barrel.position.set(0, 0.018, compact ? -0.28 : -0.55);
+  const barrelLength = compact ? 0.16 : long ? 0.72 : 0.5;
+  const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, barrelLength), mid);
+  barrel.position.set(0, 0.018, compact ? -0.28 : long ? -0.66 : -0.55);
   group.add(barrel);
 
   const grip = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.13, 0.058), dark);
@@ -207,24 +221,30 @@ function buildGun(compact) {
   group.add(hand);
 
   const frontHand = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.062, 0.1), skin);
-  frontHand.position.set(-0.005, -0.055, compact ? -0.2 : -0.34);
+  frontHand.position.set(-0.005, -0.055, compact ? -0.2 : long ? -0.48 : -0.34);
   group.add(frontHand);
 
   if (!compact) {
     const stock = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.052, 0.12), wood);
     stock.position.set(0, -0.004, 0.1);
     group.add(stock);
-
-    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.026, 0.018), mid);
-    sight.position.set(0, 0.058, -0.2);
-    group.add(sight);
   }
+
+  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.026, 0.018), mid);
+  sight.position.set(0, 0.058, -0.2);
+  group.add(sight);
+
+  // Mount point for optics; populated by applyOpticVisual().
+  const opticMount = new THREE.Group();
+  opticMount.position.set(0, 0.058, -0.2);
+  group.add(opticMount);
+  group.userData.optic = opticMount;
 
   const flash = new THREE.Mesh(
     new THREE.BoxGeometry(0.12, 0.12, 0.12),
     new THREE.MeshBasicMaterial({ color: 0xffd08a, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false })
   );
-  flash.position.set(0, 0.018, compact ? -0.38 : -0.82);
+  flash.position.set(0, 0.018, compact ? -0.38 : long ? -1.02 : -0.82);
   flash.visible = false;
   group.add(flash);
   group.userData.flash = flash;
@@ -232,14 +252,55 @@ function buildGun(compact) {
   return group;
 }
 
-const rifleGun = buildGun(false);
-const pistolGun = buildGun(true);
-rifleGun.position.set(0.19, -0.18, -0.5);
-rifleGun.scale.setScalar(0.66);
-pistolGun.position.set(0.18, -0.17, -0.44);
-pistolGun.scale.setScalar(0.64);
-camera.add(rifleGun, pistolGun);
-pistolGun.visible = false;
+function applyOpticVisual(gun, opticId) {
+  if (!gun || !gun.userData.optic) return;
+  const mount = gun.userData.optic;
+  while (mount.children.length) mount.remove(mount.children[0]);
+  if (!opticId || opticId === 'none') return;
+
+  const dark = new THREE.MeshLambertMaterial({ color: 0x1d232c });
+  const glass = new THREE.MeshBasicMaterial({ color: 0x6fd8ff });
+
+  if (opticId === 'scope') {
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.2, 10), dark);
+    tube.rotation.x = Math.PI / 2;
+    tube.position.z = -0.06;
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.024, 12), glass);
+    lens.position.set(0, 0, -0.165);
+    lens.rotation.y = Math.PI;
+    mount.add(tube, lens);
+    return;
+  }
+
+  const height = opticId === 'acog' ? 0.06 : opticId === 'holo' ? 0.045 : 0.032;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.045, height, 0.06), dark);
+  body.position.y = height / 2;
+  const lens = new THREE.Mesh(new THREE.BoxGeometry(0.03, height * 0.7, 0.005), glass);
+  lens.position.set(0, height * 0.55, -0.033);
+  mount.add(body, lens);
+}
+
+const GUN_SETUPS = {
+  rifle: { compact: false, long: false, position: [0.19, -0.18, -0.5], scale: 0.66 },
+  carbine: { compact: false, long: false, position: [0.19, -0.18, -0.5], scale: 0.64 },
+  smg: { compact: true, long: false, position: [0.18, -0.17, -0.46], scale: 0.62 },
+  shotgun: { compact: false, long: true, position: [0.2, -0.18, -0.52], scale: 0.7 },
+  sniper: { compact: false, long: true, position: [0.2, -0.18, -0.55], scale: 0.62 },
+  lmg: { compact: false, long: true, position: [0.2, -0.19, -0.52], scale: 0.7 },
+  pistol: { compact: true, long: false, position: [0.18, -0.17, -0.44], scale: 0.64 },
+};
+
+const guns = {};
+const basePositions = {};
+for (const [id, setup] of Object.entries(GUN_SETUPS)) {
+  const gun = buildGun(setup.compact, setup.long);
+  gun.position.set(...setup.position);
+  gun.scale.setScalar(setup.scale);
+  gun.visible = false;
+  camera.add(gun);
+  guns[id] = gun;
+  basePositions[id] = gun.position.clone();
+}
 
 const gunLight = new THREE.PointLight(0xfff3e0, 2.2, 2.2, 2);
 gunLight.position.set(0.25, 0.05, 0.1);
@@ -253,18 +314,7 @@ camera.add(muzzleLight);
 /* Weapons                                                             */
 /* ------------------------------------------------------------------ */
 
-const WEAPONS = {
-  rifle: {
-    name: 'AK-47', dmg: 30, headMult: 2.2, rpm: 600, magSize: 30, reloadTime: 2.1,
-    spread: 0.0055, bloomPerShot: 0.0032, maxBloom: 0.05, recoil: 0.015, heavy: false,
-    auto: true, range: 95, falloffStart: 22, falloffEnd: 70, minMult: 0.55, ammo: 30,
-  },
-  pistol: {
-    name: 'DEAGLE', dmg: 55, headMult: 2.6, rpm: 280, magSize: 7, reloadTime: 1.8,
-    spread: 0.0032, bloomPerShot: 0.012, maxBloom: 0.06, recoil: 0.034, heavy: true,
-    auto: false, range: 80, falloffStart: 18, falloffEnd: 55, minMult: 0.5, ammo: 7,
-  },
-};
+const loadouts = new AttachmentManager(WEAPON_ORDER);
 
 let slot = 'rifle';
 let bloom = 0;
@@ -283,48 +333,39 @@ let damageFlash = 0;
 let hitTimer = 0;
 let hitKill = false;
 
-const basePositions = {
-  rifle: rifleGun.position.clone(),
-  pistol: pistolGun.position.clone(),
-};
+const BASE_FOV = 70;
+let adsHeld = false;
+let adsT = 0;
+let resolvedWeapon = resolveWeaponStats('rifle', loadouts.getLoadout('rifle'));
+const ammoByWeapon = {};
+for (const id of WEAPON_ORDER) ammoByWeapon[id] = resolveWeaponStats(id, loadouts.getLoadout(id)).magSize;
 
 function currentWeapon() {
-  return WEAPONS[slot];
+  return resolvedWeapon;
 }
 
 function activeGun() {
-  return slot === 'rifle' ? rifleGun : pistolGun;
+  return guns[slot];
 }
 
-function damageFalloff(weapon, distance) {
-  if (distance <= weapon.falloffStart) return 1;
-  if (distance >= weapon.falloffEnd) return weapon.minMult;
-  const t = (distance - weapon.falloffStart) / (weapon.falloffEnd - weapon.falloffStart);
-  return 1 - t * (1 - weapon.minMult);
+function ammo() {
+  return Math.max(0, ammoByWeapon[slot] ?? 0);
 }
 
-function rayAABB(origin, dir, box) {
-  let tmin = 0;
-  let tmax = Infinity;
-  const axes = ['x', 'y', 'z'];
-  for (const axis of axes) {
-    const o = origin[axis];
-    const d = dir[axis];
-    const min = box['min' + axis.toUpperCase()];
-    const max = box['max' + axis.toUpperCase()];
-    if (Math.abs(d) < 1e-8) {
-      if (o < min || o > max) return null;
-      continue;
-    }
-    let t1 = (min - o) / d;
-    let t2 = (max - o) / d;
-    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
-    tmin = Math.max(tmin, t1);
-    tmax = Math.min(tmax, t2);
-    if (tmin > tmax) return null;
-  }
-  if (tmax < 0) return null;
-  return tmin > 0 ? tmin : tmax;
+function refreshWeaponState() {
+  resolvedWeapon = resolveWeaponStats(slot, loadouts.getLoadout(slot));
+  if (ammoByWeapon[slot] === undefined) ammoByWeapon[slot] = resolvedWeapon.magSize;
+  ammoByWeapon[slot] = Math.min(ammoByWeapon[slot], resolvedWeapon.magSize);
+  applyOpticVisual(guns[slot], loadouts.getLoadout(slot).optic);
+  for (const id of WEAPON_ORDER) guns[id].visible = id === slot;
+  if (wnameEl) wnameEl.textContent = resolvedWeapon.name;
+  if (wattachmentsEl) wattachmentsEl.textContent = loadouts.summaryFor(slot) || 'Iron sights';
+}
+
+function cycleWeapon(direction) {
+  const index = WEAPON_ORDER.indexOf(slot);
+  const next = WEAPON_ORDER[(index + direction + WEAPON_ORDER.length) % WEAPON_ORDER.length];
+  switchWeapon(next);
 }
 
 function showHitmarker(kill) {
@@ -349,7 +390,7 @@ function breakBlock(hit) {
 
 function startReload() {
   const weapon = currentWeapon();
-  if (reloadTimer > 0 || weapon.ammo >= weapon.magSize || !player.alive) return;
+  if (reloadTimer > 0 || ammo() >= weapon.magSize || !player.alive) return;
   reloadTimer = weapon.reloadTime;
   sfx.reload();
 }
@@ -357,7 +398,7 @@ function startReload() {
 function fire() {
   const weapon = currentWeapon();
   if (!player.alive || reloadTimer > 0 || fireTimer > 0) return;
-  if (weapon.ammo <= 0) {
+  if (ammo() <= 0) {
     sfx.empty();
     fireTimer = 0.3;
     startReload();
@@ -366,7 +407,7 @@ function fire() {
 
   const isRapid = eventManager.isRapidFire();
   if (!isRapid) {
-    weapon.ammo--;
+    ammoByWeapon[slot] = Math.max(0, ammo() - 1);
   }
   fireTimer = (60 / weapon.rpm) * (isRapid ? 0.6 : 1.0);
   sfx.shot(weapon.heavy);
@@ -377,51 +418,58 @@ function fire() {
   const right = new THREE.Vector3(1, 0, 0).applyEuler(rotation);
   const up = new THREE.Vector3(0, 1, 0).applyEuler(rotation);
 
-  const moveFactor = Math.min(0.022, Math.hypot(player.vel.x, player.vel.z) * 0.0024 + (player.onGround ? 0 : 0.014));
-  const spread = weapon.spread + bloom + moveFactor;
-  const angle = Math.random() * Math.PI * 2;
-  const radius = Math.tan(spread) * Math.sqrt(Math.random());
-  const dir = forward
-    .clone()
-    .addScaledVector(right, Math.cos(angle) * radius)
-    .addScaledVector(up, Math.sin(angle) * radius)
-    .normalize();
+  const aim = adsT;
+  const moveFactor =
+    Math.min(0.022, Math.hypot(player.vel.x, player.vel.z) * 0.0024 + (player.onGround ? 0 : 0.014)) *
+    (1 - 0.55 * aim);
+  const spread = weapon.spread * (1 - 0.55 * aim) + bloom * (1 - 0.4 * aim) + moveFactor;
+  const pellets = Math.max(1, weapon.pellets || 1);
 
-  let bestBot = null;
-  for (const bot of bots) {
-    if (!bot.alive) continue;
-    const t = rayAABB(origin, dir, bot.hitbox);
-    if (t !== null && t <= weapon.range && (!bestBot || t < bestBot.t)) bestBot = { t, bot };
-  }
+  for (let pellet = 0; pellet < pellets; pellet++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.tan(spread) * Math.sqrt(Math.random());
+    const dir = forward
+      .clone()
+      .addScaledVector(right, Math.cos(angle) * radius)
+      .addScaledVector(up, Math.sin(angle) * radius)
+      .normalize();
 
-  const voxelHit = raycastVoxels(world, origin, dir, weapon.range);
-
-  if (bestBot && (!voxelHit || bestBot.t < voxelHit.t)) {
-    const point = origin.clone().addScaledVector(dir, bestBot.t);
-    const headshot = point.y > bestBot.bot.pos.y + 1.5;
-    const dmgMult = eventManager.isDoubleDamage() ? 2.0 : 1.0;
-    const dmg = weapon.dmg * damageFalloff(weapon, bestBot.t) * (headshot ? weapon.headMult : 1) * dmgMult;
-    const killed = bestBot.bot.takeDamage(dmg);
-
-    particles.burst(point, dir.clone().negate(), 0xc23a2c, 9, 3);
-    showHitmarker(killed);
-    sfx.hitmarker(killed);
-    if (killed) {
-      kills++;
-      addKillfeed(headshot);
-      gameMode.onBotKilled(bestBot.bot, bots);
+    let bestBot = null;
+    for (const bot of bots) {
+      if (!bot.alive) continue;
+      const t = rayAABB(origin, dir, bot.hitbox);
+      if (t !== null && t <= weapon.range && (!bestBot || t < bestBot.t)) bestBot = { t, bot };
     }
-  } else if (voxelHit) {
-    const point = origin.clone().addScaledVector(dir, Math.max(0, voxelHit.t - 0.02));
-    const normal = new THREE.Vector3(voxelHit.nx, voxelHit.ny, voxelHit.nz);
-    const color = BLOCK_TYPES[voxelHit.type] ? BLOCK_TYPES[voxelHit.type].color : 0x9aa3ad;
-    breakBlock(voxelHit);
-    particles.burst(point, normal, color, 10, 2.8);
-    sfx.blockBreak();
+
+    const voxelHit = raycastVoxels(world, origin, dir, weapon.range);
+
+    if (bestBot && (!voxelHit || bestBot.t < voxelHit.t)) {
+      const point = origin.clone().addScaledVector(dir, bestBot.t);
+      const headshot = point.y > bestBot.bot.pos.y + 1.5;
+      const dmgMult = eventManager.isDoubleDamage() ? 2.0 : 1.0;
+      const dmg = weapon.dmg * damageFalloff(weapon, bestBot.t) * (headshot ? weapon.headMult : 1) * dmgMult;
+      const killed = bestBot.bot.takeDamage(dmg);
+
+      particles.burst(point, dir.clone().negate(), 0xc23a2c, 9, 3);
+      showHitmarker(killed);
+      sfx.hitmarker(killed);
+      if (killed) {
+        kills++;
+        addKillfeed(headshot);
+        gameMode.onBotKilled(bestBot.bot, bots);
+      }
+    } else if (voxelHit) {
+      const point = origin.clone().addScaledVector(dir, Math.max(0, voxelHit.t - 0.02));
+      const normal = new THREE.Vector3(voxelHit.nx, voxelHit.ny, voxelHit.nz);
+      const color = BLOCK_TYPES[voxelHit.type] ? BLOCK_TYPES[voxelHit.type].color : 0x9aa3ad;
+      breakBlock(voxelHit);
+      particles.burst(point, normal, color, 10, 2.8);
+      sfx.blockBreak();
+    }
   }
 
   bloom = Math.min(weapon.maxBloom, bloom + weapon.bloomPerShot);
-  player.addRecoil(weapon.recoil, weapon.recoil * 0.55);
+  player.addRecoil(weapon.recoil * (1 - 0.3 * aim), weapon.recoil * 0.55 * (1 - 0.3 * aim));
   gunKick = 1;
   muzzleTimer = 0.05;
   const gun = activeGun();
@@ -451,14 +499,17 @@ function placeBlock() {
 }
 
 function switchWeapon(next) {
-  if (next === slot) return;
-  slot = next;
-  reloadTimer = 0;
-  bloom = 0;
-  fireTimer = 0.25;
-  rifleGun.visible = slot === 'rifle';
-  pistolGun.visible = slot === 'pistol';
-  wnameEl.textContent = currentWeapon().name;
+  if (!WEAPON_DEFS[next]) return;
+  if (next !== slot) {
+    slot = next;
+    reloadTimer = 0;
+    bloom = 0;
+    fireTimer = 0.2;
+    adsT = 0;
+    adsHeld = false;
+  }
+  refreshWeaponState();
+  renderAttachmentUI();
 }
 
 /* ------------------------------------------------------------------ */
@@ -564,12 +615,84 @@ mapButtons.forEach((btn) => {
   });
 });
 
+/* ------------------------------------------------------------------ */
+/* Attachment loadout UI                                               */
+/* ------------------------------------------------------------------ */
+
+const weaponButtons = document.querySelectorAll('#weaponButtons .btn-select');
+
+function renderAttachmentUI() {
+  if (!attachmentRowsEl) return;
+
+  weaponButtons.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.weapon === slot);
+  });
+
+  const weapon = WEAPON_DEFS[slot];
+  if (loadoutNameEl) loadoutNameEl.textContent = `${weapon.name} · ${weapon.class}`;
+
+  attachmentRowsEl.innerHTML = '';
+  const current = loadouts.getLoadout(slot);
+
+  for (const slotName of weapon.slots) {
+    const row = document.createElement('div');
+    row.className = 'attach-row';
+
+    const label = document.createElement('div');
+    label.className = 'attach-slot';
+    label.textContent = SLOT_LABELS[slotName];
+    row.appendChild(label);
+
+    const options = document.createElement('div');
+    options.className = 'btn-group wrap attach-options';
+
+    for (const [id, attachment] of Object.entries(ATTACHMENTS[slotName])) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-select attach-btn' + (current[slotName] === id ? ' active' : '');
+      btn.textContent = attachment.name;
+      btn.title = attachment.desc;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (loadouts.equip(slot, slotName, id)) {
+          refreshWeaponState();
+          renderAttachmentUI();
+        }
+      });
+      options.appendChild(btn);
+    }
+
+    row.appendChild(options);
+    attachmentRowsEl.appendChild(row);
+  }
+
+  if (attachSummaryEl) {
+    attachSummaryEl.textContent =
+      loadouts.summaryFor(slot) || 'No attachments equipped — iron sights and stock parts.';
+  }
+}
+
+weaponButtons.forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    switchWeapon(btn.dataset.weapon);
+  });
+});
+
+refreshWeaponState();
+renderAttachmentUI();
+
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   playing = locked;
   overlay.classList.toggle('hidden', locked);
   if (!locked) {
     firing = false;
+    adsHeld = false;
+    adsT = 0;
+    camera.fov = BASE_FOV;
+    camera.updateProjectionMatrix();
+    if (scopeOverlayEl) scopeOverlayEl.classList.remove('show');
     playButton.textContent = 'Resume';
     document.querySelector('.eyebrow').textContent = 'Paused';
     document.querySelector('.question').style.display = 'none';
@@ -579,7 +702,9 @@ document.addEventListener('pointerlockchange', () => {
 
 document.addEventListener('mousemove', (e) => {
   if (!playing) return;
-  player.look(e.movementX, e.movementY, 0.0022);
+  const zoom = resolvedWeapon ? resolvedWeapon.zoom : 1;
+  const adsSens = adsHeld ? 1 / (1 + (zoom - 1) * 0.6) : 1;
+  player.look(e.movementX, e.movementY, 0.0022 * adsSens);
 });
 
 document.addEventListener('mousedown', (e) => {
@@ -588,16 +713,28 @@ document.addEventListener('mousedown', (e) => {
     firing = true;
     fire();
   } else if (e.button === 2) {
-    placeBlock();
+    adsHeld = true;
   }
 });
 
 document.addEventListener('mouseup', (e) => {
   if (e.button === 0) firing = false;
+  if (e.button === 2) adsHeld = false;
 });
+
+window.addEventListener('wheel', (e) => {
+  if (!playing) return;
+  cycleWeapon(e.deltaY > 0 ? 1 : -1);
+}, { passive: true });
 
 document.addEventListener('keydown', (e) => {
   if (!playing) return;
+  const digit = /^Digit([1-9])$/.exec(e.code);
+  if (digit) {
+    const index = Number(digit[1]) - 1;
+    if (index < WEAPON_ORDER.length) switchWeapon(WEAPON_ORDER[index]);
+    return;
+  }
   switch (e.code) {
     case 'KeyW': input.forward = true; break;
     case 'KeyS': input.back = true; break;
@@ -610,8 +747,7 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       break;
     case 'KeyR': startReload(); break;
-    case 'Digit1': switchWeapon('rifle'); break;
-    case 'Digit2': switchWeapon('pistol'); break;
+    case 'KeyF': placeBlock(); break;
     case 'KeyQ':
       blockIndex = (blockIndex + 1) % PLACEABLE.length;
       blockNameEl.textContent = BLOCK_TYPES[PLACEABLE[blockIndex]].name;
@@ -634,6 +770,7 @@ window.addEventListener('blur', () => {
   input.forward = input.back = input.left = input.right = false;
   input.sprint = input.crouch = false;
   firing = false;
+  adsHeld = false;
 });
 
 window.addEventListener('resize', () => {
@@ -653,10 +790,18 @@ function updateHud(dt) {
   hpFillEl.style.width = `${Math.max(0, player.hp)}%`;
   hpFillEl.classList.toggle('low', player.hp <= 35);
 
-  const ammo = Math.max(0, weapon.ammo);
-  ammoEl.innerHTML = `${ammo}<small>/${weapon.magSize}</small>`;
+  const currentAmmo = ammo();
+  ammoEl.innerHTML = `${currentAmmo}<small>/${weapon.magSize}</small>`;
   wnameEl.textContent = weapon.name;
-  reloadingEl.textContent = reloadTimer > 0 ? 'RELOADING' : ammo === 0 ? 'PRESS R' : '';
+  if (wattachmentsEl) wattachmentsEl.textContent = loadouts.summaryFor(slot) || 'Iron sights';
+  reloadingEl.textContent = reloadTimer > 0 ? 'RELOADING' : currentAmmo === 0 ? 'PRESS R' : '';
+
+  if (scopeOverlayEl) {
+    scopeOverlayEl.classList.toggle('show', Boolean(weapon.scoped && adsT > 0.65 && player.alive));
+  }
+  if (crosshairEl) {
+    crosshairEl.style.opacity = adsT > 0.5 ? '0' : '1';
+  }
 
   killsEl.textContent = kills;
   deathsEl.textContent = player.deaths;
@@ -709,9 +854,21 @@ function simulate(dt) {
     reloadTimer -= dt;
     if (reloadTimer <= 0) {
       reloadTimer = 0;
-      currentWeapon().ammo = currentWeapon().magSize;
+      ammoByWeapon[slot] = currentWeapon().magSize;
     }
   }
+
+  // Aim-down-sights transition and zoomed field of view.
+  const targetAds = adsHeld && player.alive ? 1 : 0;
+  const adsSpeed = 6 * (currentWeapon().adsSpeedMult || 1);
+  const adsDelta = targetAds - adsT;
+  const adsStep = dt * adsSpeed;
+  adsT = Math.abs(adsDelta) <= adsStep ? targetAds : adsT + Math.sign(adsDelta) * adsStep;
+
+  const zoom = currentWeapon().zoom || 1;
+  const targetFov = BASE_FOV / (1 + (zoom - 1) * adsT);
+  camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 16);
+  camera.updateProjectionMatrix();
 
   const wasAlive = player.alive;
   player.update(dt, input);
@@ -795,6 +952,8 @@ function simulate(dt) {
   // viewmodel recoil + sway
   gunKick = Math.max(0, gunKick - dt * 9);
   const gun = activeGun();
+  const hideForScope = currentWeapon().scoped && adsT > 0.85;
+  for (const id of WEAPON_ORDER) guns[id].visible = id === slot && !hideForScope;
   const base = basePositions[slot];
   const hitRecoil = gunKick * gunKick;
   gun.position.set(
@@ -860,6 +1019,19 @@ window.__vs = {
   fire,
   placeBlock,
   switchWeapon,
+  cycleWeapon,
+  loadouts,
+  WEAPON_DEFS,
+  WEAPON_ORDER,
+  equipAttachment(weaponId, slotName, attachmentId) {
+    if (!loadouts.equip(weaponId, slotName, attachmentId)) return false;
+    refreshWeaponState();
+    renderAttachmentUI();
+    return true;
+  },
+  setAds(value) {
+    adsHeld = Boolean(value);
+  },
   setPlaying(value) {
     playing = value;
   },
@@ -872,7 +1044,14 @@ window.__vs = {
       kills,
       hp: player.hp,
       alive: player.alive,
-      ammo: currentWeapon().ammo,
+      weapon: slot,
+      ammo: ammo(),
+      magSize: currentWeapon().magSize,
+      attachments: loadouts.getLoadout(slot),
+      zoom: currentWeapon().zoom,
+      scoped: currentWeapon().scoped,
+      adsT,
+      fov: camera.fov,
       blocks: world.solidCount,
       bots: bots.map((b) => ({ hp: b.hp, alive: b.alive, x: b.pos.x, y: b.pos.y, z: b.pos.z })),
       cam: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
