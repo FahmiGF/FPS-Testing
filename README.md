@@ -37,7 +37,7 @@ Game ini menyediakan 3 mode permainan berbeda yang dapat dipilih langsung dari m
 
 ## 🗺️ Peta Pertempuran Voxel (Tactical Maps)
 
-Game ini kini menyediakan 6 pilihan peta tematik dengan layout arsitektur, atmosfer kabut, dan pencahayaan unik:
+Game ini kini menyediakan 10 pilihan peta tematik dengan layout arsitektur, atmosfer kabut, dan pencahayaan unik:
 
 1. **🏜️ Dust Compound (Desert Military)**
    - Peta taktis klasik dengan lorong sempit, tumpukan peti, dan dinding pemisah dengan 3 pintu tembak.
@@ -57,6 +57,18 @@ Game ini kini menyediakan 6 pilihan peta tematik dengan layout arsitektur, atmos
 6. **🏙️ Urban Warzone (Modern Warfare)**
    - Persimpangan jalan aspal kota yang hancur, barikade beton jalan raya, pos karung pasir militer, dan gedung perkantoran 2 lantai dengan jendela bidik sniper.
    - Suasana: Kabut asap perang modern abu-abu kehijauan.
+7. **🌴 Emerald Canopy (Tropical Rainforest)**
+   - Hutan hujan lebat dengan sungai melintang, 3 jembatan tali kayu, reruntuhan candi batu kuno, dan kanopi pohon raksasa sebagai cover alami.
+   - Suasana: Kabut hijau tropis lembap dengan cahaya matahari menembus dedaunan.
+8. **🌙 Blackout District (Night Operation)**
+   - Blok kota gelap gulita yang hanya diterangi lampu reaktor magma, gudang-gudang dengan mezzanine, gang sempit, dan jalur flank senyap.
+   - Suasana: Malam pekat dengan jarak pandang sangat pendek (fog 18–78).
+9. **🚀 Orbital Station K-7 (Sci-Fi Space Station)**
+   - Stasiun luar angkasa terbengkalai dengan inti reaktor menyala di tengah, koridor logam simetris, laboratorium samping, dan dek observasi.
+   - Suasana: Luar angkasa hitam dengan cahaya dingin kebiruan.
+10. **☁️ Aether Sky Fortress (Sky Citadel)**
+    - Benteng melayang di atas awan dengan rampart terbuka, 4 menara bata, jembatan panjang tanpa pagar, dan pulau-pulau kecil terapung.
+    - Suasana: Langit biru cerah di atas lautan awan, minim cover di jalur utama.
 
 ---
 
@@ -98,7 +110,7 @@ Secara berkala, arena akan memicu event dinamis yang mengubah alur permainan:
 | **Ctrl** | Menunduk (*Crouch*) |
 | **1 / 2** | Ganti senjata (**AK-47** / **Desert Eagle**) |
 | **R** | Isi ulang peluru (*Reload*) |
-| **Q** | Ganti tipe material blok (Stone, Crate, Sand, Metal, Brick, Grass) |
+| **Q** | Ganti tipe material blok (Stone, Crate, Sand, Metal, Brick, Grass, Snow, Ice, Magma, Basalt, Wood, Concrete, Foliage) |
 | **Esc** | Pause / Buka kursor mouse |
 
 ---
@@ -107,7 +119,8 @@ Secara berkala, arena akan memicu event dinamis yang mengubah alur permainan:
 
 Proyek ini dilengkapi dengan suite pengujian otomatis berbasis Node.js native test runner (`node:test` & `node:assert`) dengan 100% kelulusan:
 
-- **`tests/maps.test.js`**: Uji generasi prosedural 6 map tematik (Compound, Winter, Lava, Beach, Castle, Modern Warfare) dan verifikasi zona spawn bebas rintangan.
+- **`tests/maps.test.js`**: Uji generasi prosedural 10 map tematik (Compound, Winter, Lava, Beach, Castle, Modern Warfare, Jungle, Night Ops, Space Station, Sky Fortress), keunikan nama/tema, dan verifikasi zona spawn player & bot bebas rintangan.
+- **`tests/attachments.test.js`**: Uji katalog attachment, resolusi stat, kompatibilitas slot senjata, dan loadout manager.
 - **`tests/modes.test.js`**: Uji aturan mode Deathmatch, Classic round elimination, dan alur Capture The Flag (grab, return, capture).
 - **`tests/events.test.js`**: Uji aktivasi event, timer durasi, supply drop pickup, dan ledakan voxel meteor.
 - **`tests/botLevels.test.js`**: Uji penyesuaian stat HP, akurasi, dan scaling dinamis bot level 1-4.

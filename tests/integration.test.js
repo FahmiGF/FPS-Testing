@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { VoxelWorld, buildArena, raycastVoxels } from '../src/voxelWorld.js';
 import { Player } from '../src/player.js';
 import { Bot, Tracers } from '../src/bots.js';
-import { WEAPON_CONFIGS, rayAABB, damageFalloff } from './weapons.test.js';
+import { WEAPON_DEFS as WEAPON_CONFIGS, rayAABB, damageFalloff } from '../src/weapons.js';
 
 test('Full Headless Gameplay Simulation: movement, combat, voxel destruction & rebuild', () => {
   const scene = new THREE.Scene();
